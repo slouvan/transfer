@@ -101,8 +101,8 @@ MAX_CHAR_LEN = 17
 
 DIR = './'
 TRAIN_DATA = DIR + 'atis-2.train.conll'
-TEST_DATA = DIR + 'atis.test.iob.conll'
-DEV_DATA = DIR + 'atis-2.dev.conll'
+TEST_DATA = DIR + 'atis-2.dev.conll'
+DEV_DATA = DIR + 'atis.test.iob.conll'
 
 HASH_FILE = 'words.lst'
 EMB_FILE = 'embeddings.txt'
