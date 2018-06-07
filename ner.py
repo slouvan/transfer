@@ -4,7 +4,7 @@ from collections import defaultdict as dd
 from scipy import sparse as sp
 import cnn_rnn
 import sample
-
+from util import current_time
 CAT = ['PER', 'ORG', 'LOC', 'MISC']
 POSITION = ['I', 'B', 'E', 'S']
 
@@ -406,31 +406,51 @@ def read_word2embedding():
     return word2embedding
 
 if __name__ == '__main__':
+
+    print "Creating the word index"
     word_index, word_cnt = create_word_index([TRAIN_DATA, DEV_DATA, TEST_DATA])
+
+    print "Reading the training data"
     wx, y, m = read_data(TRAIN_DATA, word_index)
     if USE_DEV:
+        print "Reading the test data"
         dev_wx, dev_y, dev_m = read_data(TEST_DATA, word_index)
         wx, y, m = np.vstack((wx, dev_wx)), np.vstack((y, dev_y)), np.vstack((m, dev_m))
+    print "Reading the DEV data"
     twx, ty, tm = read_data(DEV_DATA, word_index)
+    print "Creating char index"
+
     char_index, char_cnt= create_char_index([TRAIN_DATA, DEV_DATA, TEST_DATA])
+    print "Reading char data from the training data"
     x, cm = read_char_data(TRAIN_DATA, char_index)
     if USE_DEV:
+        print "Reading char data from the test data"
         dev_x, dev_cm = read_char_data(TEST_DATA, char_index)
         x, cm = np.vstack((x, dev_x)), np.vstack((cm, dev_cm))
+    print "Reading char data from the test data"
     tx, tcm = read_char_data(DEV_DATA, char_index)
     list_prefix = read_list()
     gaze = read_list_data(TRAIN_DATA, list_prefix)
     if USE_DEV:
+        print "Gaze TEST data"
         dev_gaze = read_list_data(TEST_DATA, list_prefix)
         gaze = np.vstack((gaze, dev_gaze))
+    print "Gaze DEV data"
     tgaze = read_list_data(DEV_DATA, list_prefix)
+    print "Creating the CNN RNN architecture"
     model = cnn_rnn.cnn_rnn(char_cnt, len(LABEL_INDEX), word_cnt)
     if LABELING_RATE < 1.0:
+        print "Sample index"
         ind = sample.create_sample_index(LABELING_RATE, x.shape[0])
         x, y, m, wx, cm, gaze = sample.sample_arrays((x, y, m, wx, cm, gaze), ind)
+    print "Adding data"
     model.add_data(x, y, m, wx, cm, gaze, tx, ty, tm, twx, tcm, tgaze)
+    print "Build the model ",current_time()
     model.build()
+    print "Read the embedding ",current_time()
     word2embedding = read_word2embedding()
+    print "Set the embedding ",current_time()
     model.set_embedding(word2embedding, word_index)
+    print "TRAIN! ",current_time()
     model.train(evaluate)
 

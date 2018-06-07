@@ -7,6 +7,7 @@ import cPickle
 # from data import *
 import sys
 from theano import sparse
+from util import current_time
 
 CRF_INIT = True
 COST = True
@@ -241,6 +242,7 @@ class cnn_rnn:
         gaze_sym = T.tensor3('gaze')
 
         l = lasagne.layers.InputLayer(shape = (None, self.x.shape[1], self.x.shape[2]), input_var = x_sym)
+        print("Char cnt :  {}\t Embedding size : {}".format(self.char_cnt, self.embedding_size))
         l = lasagne.layers.EmbeddingLayer(l, self.char_cnt, self.embedding_size)
         l_char = lasagne.layers.ReshapeLayer(l, (-1, [2], [3]))
         l_c_mask = lasagne.layers.InputLayer(shape = (None, self.x.shape[1], self.x.shape[2]), input_var = cm_sym)
@@ -259,8 +261,10 @@ class cnn_rnn:
         ls = []
         l_c_mask = lasagne.layers.DimshuffleLayer(l_c_mask, (0, 'x', 1))
         l_filter = ElemwiseMergeLayer([l, l_c_mask], T.mul)
+        print "Appending Conv1 D layer ",current_time()
         for f_size in self.char_f_sizes:
             ls.append(lasagne.layers.Conv1DLayer(l_filter, self.char_filter_num, f_size))
+        print "Global Pool Layer", current_time()
         for i in range(len(ls)):
             ls[i] = lasagne.layers.GlobalPoolLayer(ls[i], T.max)
         l_c = lasagne.layers.ConcatLayer(ls)
@@ -310,7 +314,7 @@ class cnn_rnn:
             l = layer_list[0]
         if not self.joint:
             self.char_layer = l
-
+        print "Dim shuffle layer", current_time()
         l_cnn = lasagne.layers.DimshuffleLayer(l, (0, 2, 1))
         l_mask = lasagne.layers.InputLayer(shape = (None, self.x.shape[1]), input_var = m_sym)
         l_cnn_mask = lasagne.layers.DimshuffleLayer(l_mask, (0, 'x', 1))
@@ -345,19 +349,27 @@ class cnn_rnn:
             self.char_layer = l
 
         if self.use_crf:
+            print "CRF layer begins", current_time()
+
             l_train = CRFLayer(l, self.label_cnt, mask_input = m_sym, label_input = y_sym)
             l_test = CRFDecodeLayer(l, self.label_cnt, mask_input = m_sym, W = l_train.W, W_sim = l_train.W_sim,\
              W_init = l_train.W_init)
             self.l = l_train
             if self.very_top_joint:
                 self.char_layer = self.l
+            print "get output", current_time()
 
             loss = lasagne.layers.get_output(l_train)
             params = lasagne.layers.get_all_params(self.l, trainable = True)
             updates = lasagne.updates.adagrad(loss, params, learning_rate = self.learning_rate)
-            self.train_fn = theano.function([x_sym, y_sym, m_sym, wx_sym, cm_sym, gaze_sym, lemma_sym, pos_sym], loss, updates = updates, on_unused_input = 'ignore')
+            print "Train fn theano function", current_time()
+
+            self.train_fn = theano.function([x_sym, y_sym, m_sym, wx_sym, cm_sym, gaze_sym, lemma_sym, pos_sym], loss, updates = updates, on_unused_input = 'ignore',mode='FAST_RUN')
+            print "Lsagne layers get output", current_time()
 
             py = lasagne.layers.get_output(l_test, deterministic = True)
+            print "Test fn theano function", current_time()
+
             self.test_fn = theano.function([x_sym, m_sym, wx_sym, cm_sym, gaze_sym, lemma_sym, pos_sym], py, on_unused_input = 'ignore')
         else:
             l = lasagne.layers.ReshapeLayer(l, (-1, [2]))
@@ -369,6 +381,7 @@ class cnn_rnn:
             updates = lasagne.updates.adagrad(loss, params, learning_rate = self.learning_rate)
             self.train_fn = theano.function([x_sym, y_sym, m_sym, wx_sym, cm_sym, gaze_sym, lemma_sym, pos_sym], loss, updates = updates, on_unused_input = 'ignore')
             self.test_fn = theano.function([x_sym, m_sym, wx_sym, cm_sym, gaze_sym, lemma_sym, pos_sym], py, on_unused_input = 'ignore')
+        print "End of mocel building", current_time()
         
     def store_params(self, iter, filename = None):
         if filename is None:
@@ -445,9 +458,12 @@ class cnn_rnn:
         print "\t".join(['epoch', 'iter', 'max_f1', 'f1', 'prec', 'recall'])
         max_f1 = 0.0
         for epoch in range(self.epoch):
+            print "Permutation", current_time()
+
             ind = np.random.permutation(self.x.shape[0])
             i = 0
             iter = 0
+            print "Total loop : ",self.x.shape[0]
             while i < self.x.shape[0]:
                 iter += 1
                 j = min(self.x.shape[0], i + self.batch_size)
@@ -471,6 +487,9 @@ class cnn_rnn:
                         acc, f1, prec, recall = eval_func(py, self.ty, self.tm, full = True)
                     max_f1 = max(max_f1, f1)
                     print epoch, iter, max_f1, f1, prec, recall
+                if i % 100 == 0:
+                    print "i : {} {}".format(i, current_time())
+
             py = self.predict(self.tx, self.tm, self.twx, self.tcm, self.tgaze, self.tlemma, self.tpos)
             if self.ind2word is not None:
                 acc, f1, prec, recall = eval_func(py, self.ty, self.tm, full = True, ind2word = self.ind2word, x = self.twx)

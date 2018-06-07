@@ -4,7 +4,7 @@ import lasagne
 import sample
 import numpy as np
 import argparse
-
+from util import current_time
 parser = argparse.ArgumentParser()
 parser.add_argument('--tasks', nargs='+')
 parser.add_argument('--labeling_rates', nargs='+', type=float)
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     for word in word_set:
         word_index[word] = word_cnt
         word_cnt += 1
-    
+    print("WORD CNT : {} CHAR CNT : {}".format(word_cnt, char_cnt))
     models, eval_funcs = [], []
     for i, task in enumerate(TASKS):
         t = __import__(task)
@@ -112,7 +112,7 @@ if __name__ == '__main__':
                 iter += 1
                 acc, f1, prec, recall = eval_funcs[i](py, model.ty, model.tm, full = True)
                 max_f1s[i] = max(max_f1s[i], f1)
-                print TASKS[i], model.epoch, model.iter, max_f1s[i], f1, prec, recall
+                print TASKS[i], model.epoch, model.iter, max_f1s[i], f1, prec, recall, current_time()
             if iter < MAX_ITER:
                 prev_params = lasagne.layers.get_all_param_values(model.char_layer)
 
